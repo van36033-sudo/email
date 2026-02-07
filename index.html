@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Temp Email Receiver</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    body { margin: 0; background:#0b1220; color:#e8eefc; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+    .card { background:#111a2e; border:1px solid #233055; border-radius:14px; padding:16px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    button { background:#2b6cff; border:0; color:white; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    input { flex:1; min-width:260px; padding:10px 12px; border-radius:10px; border:1px solid #2a3a66; background:#0c152a; color:#e8eefc; }
+    .muted { color:#a9b7de; font-size: 13px; }
+    .pill { display:inline-block; padding:4px 10px; border:1px solid #2a3a66; border-radius:999px; font-size:12px; color:#c6d2f5; }
+    table { width:100%; border-collapse: collapse; margin-top:12px; }
+    th, td { text-align:left; padding:10px; border-bottom:1px solid #1f2a4a; vertical-align: top; }
+    tr:hover { background:#0d1730; cursor:pointer; }
+    .split { display:grid; grid-template-columns: 1.2fr .8fr; gap: 12px; }
+    @media (max-width: 900px){ .split { grid-template-columns: 1fr; } }
+    .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+      background:#0f1a33; border:1px solid #2a3a66; padding:10px 12px; border-radius:999px; display:none; }
+    pre { white-space: pre-wrap; word-break: break-word; background:#0c152a; border:1px solid #24335f; padding:12px; border-radius:12px; }
+    a { color:#8bb2ff; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 style="margin:0 0 6px">Temporary Email Receiver</h1>
+    <div class="muted" style="margin-bottom:16px">
+      Generate email sementara dan baca inbox via API <span class="pill">mail.tm</span>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <input id="email" readonly placeholder="Klik Generate Email..." />
+        <button id="btnGen">Generate Email</button>
+        <button id="btnCopy" disabled>Copy</button>
+        <button id="btnRefresh" disabled>Refresh Inbox</button>
+      </div>
+      <div class="muted" style="margin-top:10px" id="status">Status: belum ada email.</div>
+    </div>
+
+    <div class="split" style="margin-top:12px">
+      <div class="card">
+        <div class="row" style="justify-content:space-between; align-items:center">
+          <div>
+            <b>Inbox</b> <span class="muted">(klik untuk lihat isi)</span>
+          </div>
+          <div class="muted" id="inboxMeta"></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Waktu</th>
+              <th>Dari</th>
+              <th>Subjek</th>
+            </tr>
+          </thead>
+          <tbody id="inboxBody">
+            <tr><td colspan="3" class="muted">Belum ada data.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <b>Detail Email</b>
+        <div class="muted" style="margin:6px 0 10px" id="detailMeta">Belum ada email dipilih.</div>
+        <pre id="detailBody">-</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+  const API = "https://api.mail.tm";
+  let token = null;
+  let account = null;
+  let refreshTimer = null;
+
+  const $ = (id) => document.getElementById(id);
+  const emailEl = $("email");
+  const statusEl = $("status");
+  const inboxBody = $("inboxBody");
+  const detailMeta = $("detailMeta");
+  const detailBody = $("detailBody");
+  const inboxMeta = $("inboxMeta");
+
+  const btnGen = $("btnGen");
+  const btnCopy = $("btnCopy");
+  const btnRefresh = $("btnRefresh");
+
+  function toast(msg){
+    const t = $("toast");
+    t.textContent = msg;
+    t.style.display = "block";
+    clearTimeout(t._h);
+    t._h = setTimeout(()=> t.style.display="none", 1600);
+  }
+
+  async function api(path, opts={}){
+    const headers = opts.headers || {};
+    if (token) headers["Authorization"] = "Bearer " + token;
+    if (!headers["Content-Type"] && opts.body) headers["Content-Type"] = "application/json";
+    const res = await fetch(API + path, { ...opts, headers });
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+    if (!res.ok) {
+      const msg = (data && (data.message || data.detail)) ? (data.message || data.detail) : res.statusText;
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  function setReady(ready){
+    btnCopy.disabled = !ready;
+    btnRefresh.disabled = !ready;
+  }
+
+  function stopAutoRefresh(){
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+
+  async function generateEmail(){
+    stopAutoRefresh();
+    token = null;
+    account = null;
+    setReady(false);
+    emailEl.value = "";
+    inboxBody.innerHTML = `<tr><td colspan="3" class="muted">Memuat...</td></tr>`;
+    detailMeta.textContent = "Belum ada email dipilih.";
+    detailBody.textContent = "-";
+    inboxMeta.textContent = "";
+    statusEl.textContent = "Status: menyiapkan domain...";
+
+    // 1) ambil domain
+    const domains = await api("/domains?page=1");
+    const domain = domains["hydra:member"]?.[0]?.domain;
+    if (!domain) throw new Error("Domain tidak tersedia dari API.");
+
+    // 2) buat account random
+    const user = "user" + Math.random().toString(16).slice(2,10);
+    const addr = `${user}@${domain}`;
+    const pass = "P@" + Math.random().toString(36).slice(2,12) + "9!";
+
+    statusEl.textContent = "Status: membuat akun mailbox...";
+    account = await api("/accounts", {
+      method: "POST",
+      body: JSON.stringify({ address: addr, password: pass })
+    });
+
+    // 3) login token
+    statusEl.textContent = "Status: login mailbox...";
+    const t = await api("/token", {
+      method: "POST",
+      body: JSON.stringify({ address: addr, password: pass })
+    });
+    token = t.token;
+
+    emailEl.value = addr;
+    setReady(true);
+    statusEl.textContent = "Status: siap. Inbox akan auto-refresh tiap 8 detik.";
+    toast("Email dibuat!");
+
+    await loadInbox();
+    refreshTimer = setInterval(loadInbox, 8000);
+  }
+
+  async function loadInbox(){
+    if (!token) return;
+    try {
+      const list = await api("/messages?page=1");
+      const msgs = list["hydra:member"] || [];
+      inboxMeta.textContent = `${msgs.length} pesan`;
+      if (!msgs.length){
+        inboxBody.innerHTML = `<tr><td colspan="3" class="muted">Belum ada email masuk.</td></tr>`;
+        return;
+      }
+      inboxBody.innerHTML = msgs.map(m => {
+        const from = m.from?.address ? `${m.from.address}` : "-";
+        const t = m.createdAt ? new Date(m.createdAt).toLocaleString() : "-";
+        const sub = m.subject || "(tanpa subjek)";
+        return `<tr data-id="${m.id}">
+          <td>${escapeHtml(t)}</td>
+          <td>${escapeHtml(from)}</td>
+          <td>${escapeHtml(sub)}</td>
+        </tr>`;
+      }).join("");
+
+      // click handler
+      [...inboxBody.querySelectorAll("tr[data-id]")].forEach(tr => {
+        tr.addEventListener("click", () => openMessage(tr.dataset.id));
+      });
+    } catch (e){
+      statusEl.textContent = "Status: gagal refresh inbox — " + e.message;
+    }
+  }
+
+  async function openMessage(id){
+    try{
+      const msg = await api("/messages/" + id);
+      const from = msg.from?.address || "-";
+      const to = msg.to?.map(x => x.address).join(", ") || "-";
+      const sub = msg.subject || "(tanpa subjek)";
+      const t = msg.createdAt ? new Date(msg.createdAt).toLocaleString() : "-";
+
+      detailMeta.innerHTML = `
+        <div><b>Subjek:</b> ${escapeHtml(sub)}</div>
+        <div class="muted">Dari: ${escapeHtml(from)} | Ke: ${escapeHtml(to)} | ${escapeHtml(t)}</div>
+      `;
+
+      // body bisa html atau text
+      const text = msg.text || "";
+      const html = msg.html?.[0] || "";
+      if (text.trim()){
+        detailBody.textContent = text;
+      } else if (html.trim()){
+        detailBody.textContent = stripHtml(html);
+      } else {
+        detailBody.textContent = "(isi kosong)";
+      }
+    } catch(e){
+      toast("Gagal buka email: " + e.message);
+    }
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  function stripHtml(html){
+    const d = document.createElement("div");
+    d.innerHTML = html;
+    return d.textContent || d.innerText || "";
+  }
+
+  btnGen.addEventListener("click", async () => {
+    btnGen.disabled = true;
+    try { await generateEmail(); }
+    catch(e){
+      statusEl.textContent = "Status: error — " + e.message;
+      inboxBody.innerHTML = `<tr><td colspan="3" class="muted">Gagal memuat.</td></tr>`;
+    }
+    finally { btnGen.disabled = false; }
+  });
+
+  btnCopy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(emailEl.value);
+      toast("Disalin ke clipboard!");
+    } catch {
+      toast("Gagal copy. Copy manual ya.");
+    }
+  });
+
+  btnRefresh.addEventListener("click", loadInbox);
+</script>
+</body>
+</html>
