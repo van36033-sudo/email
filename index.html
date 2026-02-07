@@ -143,8 +143,8 @@
     const domain = domains["hydra:member"]?.[0]?.domain;
     if (!domain) throw new Error("Domain tidak tersedia dari API.");
 
-    // 2) buat account random
-    const user = "user" + Math.random().toString(16).slice(2,10);
+    // 2) buat account random (PASTI ada 'vannnstore' di emailnya)
+    const user = "vannnstore" + Math.random().toString(16).slice(2,8);
     const addr = `${user}@${domain}`;
     const pass = "P@" + Math.random().toString(36).slice(2,12) + "9!";
 
@@ -192,7 +192,6 @@
         </tr>`;
       }).join("");
 
-      // click handler
       [...inboxBody.querySelectorAll("tr[data-id]")].forEach(tr => {
         tr.addEventListener("click", () => openMessage(tr.dataset.id));
       });
@@ -214,7 +213,6 @@
         <div class="muted">Dari: ${escapeHtml(from)} | Ke: ${escapeHtml(to)} | ${escapeHtml(t)}</div>
       `;
 
-      // body bisa html atau text
       const text = msg.text || "";
       const html = msg.html?.[0] || "";
       if (text.trim()){
