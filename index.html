@@ -24,6 +24,8 @@
       background:#0f1a33; border:1px solid #2a3a66; padding:10px 12px; border-radius:999px; display:none; }
     pre { white-space: pre-wrap; word-break: break-word; background:#0c152a; border:1px solid #24335f; padding:12px; border-radius:12px; }
     a { color:#8bb2ff; }
+    .hint { margin-top:8px; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
   </style>
 </head>
 <body>
@@ -40,6 +42,16 @@
         <button id="btnCopy" disabled>Copy</button>
         <button id="btnRefresh" disabled>Refresh Inbox</button>
       </div>
+
+      <!-- ✅ Custom name -->
+      <div class="row" style="margin-top:12px">
+        <input id="customName" class="kbd" placeholder="Custom name (contoh: vannnstore-irvan123)" />
+        <button id="btnCustom">Pakai Custom</button>
+      </div>
+      <div class="muted hint">
+        Aturan: hanya <span class="kbd">a-z 0-9 . _ -</span> (tanpa spasi), panjang 3–30. Kalau gagal/terpakai → otomatis generate random.
+      </div>
+
       <div class="muted" style="margin-top:10px" id="status">Status: belum ada email.</div>
     </div>
 
@@ -92,6 +104,8 @@
   const btnGen = $("btnGen");
   const btnCopy = $("btnCopy");
   const btnRefresh = $("btnRefresh");
+  const btnCustom = $("btnCustom");
+  const customNameEl = $("customName");
 
   function toast(msg){
     const t = $("toast");
@@ -126,7 +140,7 @@
     refreshTimer = null;
   }
 
-  async function generateEmail(){
+  function resetUIBeforeCreate(){
     stopAutoRefresh();
     token = null;
     account = null;
@@ -136,25 +150,33 @@
     detailMeta.textContent = "Belum ada email dipilih.";
     detailBody.textContent = "-";
     inboxMeta.textContent = "";
-    statusEl.textContent = "Status: menyiapkan domain...";
+  }
 
-    // 1) ambil domain
+  function normalizeLocalPart(input){
+    const s = String(input || "").trim().toLowerCase();
+    // hanya a-z 0-9 . _ -
+    const ok = /^[a-z0-9._-]{3,30}$/.test(s);
+    return ok ? s : null;
+  }
+
+  async function getFirstDomain(){
     const domains = await api("/domains?page=1");
     const domain = domains["hydra:member"]?.[0]?.domain;
     if (!domain) throw new Error("Domain tidak tersedia dari API.");
+    return domain;
+  }
 
-    // 2) buat account random (PASTI ada 'vannnstore' di emailnya)
-    const user = "vannnstore" + Math.random().toString(16).slice(2,8);
-    const addr = `${user}@${domain}`;
+  async function createMailboxWithLocalPart(localPart){
+    const domain = await getFirstDomain();
+    const addr = `${localPart}@${domain}`;
     const pass = "P@" + Math.random().toString(36).slice(2,12) + "9!";
 
-    statusEl.textContent = "Status: membuat akun mailbox...";
+    statusEl.textContent = `Status: membuat akun mailbox (${localPart}@...)...`;
     account = await api("/accounts", {
       method: "POST",
       body: JSON.stringify({ address: addr, password: pass })
     });
 
-    // 3) login token
     statusEl.textContent = "Status: login mailbox...";
     const t = await api("/token", {
       method: "POST",
@@ -169,6 +191,40 @@
 
     await loadInbox();
     refreshTimer = setInterval(loadInbox, 8000);
+  }
+
+  function randomVannnstore(){
+    return "vannnstore" + Math.random().toString(16).slice(2,8);
+  }
+
+  async function generateEmail(){
+    resetUIBeforeCreate();
+    statusEl.textContent = "Status: menyiapkan domain...";
+
+    // default random dengan prefix vannnstore
+    const localPart = randomVannnstore();
+    await createMailboxWithLocalPart(localPart);
+  }
+
+  async function useCustomEmail(){
+    resetUIBeforeCreate();
+
+    const wanted = normalizeLocalPart(customNameEl.value);
+    if (!wanted){
+      statusEl.textContent = "Status: custom name tidak valid. Pakai random...";
+      await createMailboxWithLocalPart(randomVannnstore());
+      return;
+    }
+
+    statusEl.textContent = "Status: mencoba custom name...";
+    try{
+      await createMailboxWithLocalPart(wanted);
+      toast("Custom dipakai!");
+    } catch(e){
+      // kalau sudah dipakai / error → fallback random
+      statusEl.textContent = `Status: custom gagal (${e.message}). Pakai random...`;
+      await createMailboxWithLocalPart(randomVannnstore());
+    }
   }
 
   async function loadInbox(){
@@ -238,12 +294,30 @@
 
   btnGen.addEventListener("click", async () => {
     btnGen.disabled = true;
+    btnCustom.disabled = true;
     try { await generateEmail(); }
     catch(e){
       statusEl.textContent = "Status: error — " + e.message;
       inboxBody.innerHTML = `<tr><td colspan="3" class="muted">Gagal memuat.</td></tr>`;
     }
-    finally { btnGen.disabled = false; }
+    finally {
+      btnGen.disabled = false;
+      btnCustom.disabled = false;
+    }
+  });
+
+  btnCustom.addEventListener("click", async () => {
+    btnGen.disabled = true;
+    btnCustom.disabled = true;
+    try { await useCustomEmail(); }
+    catch(e){
+      statusEl.textContent = "Status: error — " + e.message;
+      inboxBody.innerHTML = `<tr><td colspan="3" class="muted">Gagal memuat.</td></tr>`;
+    }
+    finally {
+      btnGen.disabled = false;
+      btnCustom.disabled = false;
+    }
   });
 
   btnCopy.addEventListener("click", async () => {
@@ -256,6 +330,11 @@
   });
 
   btnRefresh.addEventListener("click", loadInbox);
+
+  // Enter di input custom langsung jalan
+  customNameEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") btnCustom.click();
+  });
 </script>
 </body>
 </html>
