@@ -10,10 +10,13 @@
 body{margin:0;background:#0b1220;color:#e8eefc;}
 .wrap{max-width:980px;margin:auto;padding:24px;}
 .card{background:#111a2e;border:1px solid #233055;border-radius:14px;padding:16px;}
-.row{display:flex;gap:12px;flex-wrap:wrap;}
-button{background:#2b6cff;border:0;color:white;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600;}
-button:disabled{opacity:.6}
-input{flex:1;min-width:260px;padding:10px;border-radius:10px;border:1px solid #2a3a66;background:#0c152a;color:#e8eefc;}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+button{background:#2b6cff;border:0;color:white;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:700;}
+button:disabled{opacity:.55;cursor:not-allowed;}
+input{
+  flex:1;min-width:220px;padding:10px;border-radius:10px;
+  border:1px solid #2a3a66;background:#0c152a;color:#e8eefc;
+}
 .muted{color:#a9b7de;font-size:13px}
 table{width:100%;border-collapse:collapse;margin-top:12px}
 th,td{padding:10px;border-bottom:1px solid #1f2a4a;text-align:left}
@@ -35,62 +38,82 @@ background:#16a34a;
 color:#031b0d;
 padding:2px 6px;
 border-radius:8px;
-font-weight:800;
+font-weight:900;
 }
 
 .toast{
-position:fixed;
-bottom:16px;
-left:50%;
-transform:translateX(-50%);
-background:#0f1a33;
-border:1px solid #2a3a66;
-padding:10px 12px;
-border-radius:999px;
-display:none;
+position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+background:#0f1a33;border:1px solid #2a3a66;padding:10px 12px;border-radius:999px;display:none;
 }
+
+.sectionTitle{margin:10px 0 6px;font-weight:800;}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+.chip{
+  display:flex;align-items:center;gap:8px;
+  background:#0c152a;border:1px solid #2a3a66;border-radius:999px;
+  padding:8px 10px;
+}
+.chip .addr{font-size:12px;color:#e8eefc;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.chip button{
+  padding:6px 8px;border-radius:999px;font-weight:900;
+}
+.btnGhost{background:#1f2a4a;}
+.btnDanger{background:#b91c1c;}
+.btnPin{background:#f59e0b;color:#1b1203;}
 </style>
 </head>
 
 <body>
 <div class="wrap">
 
-<h1 style="font-size:32px;font-weight:900;background:linear-gradient(90deg,#2b6cff,#00d4ff);-webkit-background-clip:text;color:transparent;">
+<h1 style="font-size:32px;font-weight:900;background:linear-gradient(90deg,#2b6cff,#00d4ff);-webkit-background-clip:text;color:transparent;margin:0 0 10px;">
 VANNSTORE TEMP MAIL
 </h1>
 
 <div class="card">
-<div class="row">
-<input id="email" readonly placeholder="Klik Generate Email...">
-<button id="btnGen">Generate</button>
-<button id="btnCopy" disabled>Copy</button>
-<button id="btnRefresh" disabled>Refresh</button>
-</div>
+  <div class="row">
+    <input id="email" readonly placeholder="Klik Generate Email...">
+    <button id="btnGen">Generate</button>
+    <button id="btnCopy" disabled>Copy</button>
+    <button id="btnRefresh" disabled>Refresh</button>
+  </div>
 
-<div class="row" style="margin-top:10px">
-<input id="customName" placeholder="custom name (contoh: vannnstore-irvan)">
-<button id="btnCustom">Pakai Custom</button>
-</div>
+  <div class="row" style="margin-top:10px">
+    <input id="customName" placeholder="custom name (contoh: vannnstore-irvan)">
+    <button id="btnCustom">Pakai Custom</button>
+    <button id="btnClearAll" class="btnGhost">Hapus Semua Riwayat</button>
+  </div>
 
-<div class="muted" id="status" style="margin-top:10px">Status: belum ada email</div>
+  <!-- ✅ Chips area -->
+  <div class="sectionTitle">📌 Favorit</div>
+  <div id="pins" class="chips muted">Belum ada favorit.</div>
+
+  <div class="sectionTitle">🕘 Riwayat</div>
+  <div id="history" class="chips muted">Belum ada riwayat.</div>
+
+  <div class="muted" style="margin-top:8px">
+    *Riwayat tersimpan di browser kamu (localStorage), jadi email lama bisa dipakai lagi di perangkat/browser yang sama.
+  </div>
+
+  <div class="muted" id="status" style="margin-top:10px">Status: belum ada email</div>
 </div>
 
 <div class="split" style="margin-top:12px">
 
-<div class="card">
-<b>Inbox</b>
-<table>
-<thead><tr><th>Waktu</th><th>Dari</th><th>Subjek</th></tr></thead>
-<tbody id="inboxBody"><tr><td colspan="3">Belum ada email</td></tr></tbody>
-</table>
-</div>
+  <div class="card">
+    <b>Inbox</b>
+    <table>
+      <thead><tr><th>Waktu</th><th>Dari</th><th>Subjek</th></tr></thead>
+      <tbody id="inboxBody"><tr><td colspan="3">Belum ada email</td></tr></tbody>
+    </table>
+  </div>
 
-<div class="card">
-<b>Detail Email</b><br><br>
-<button id="copyOtpBtn" style="display:none;margin-bottom:8px;">Copy OTP</button>
-<div id="detailMeta" class="muted"></div><br>
-<div id="detailBody">-</div>
-</div>
+  <div class="card">
+    <b>Detail Email</b><br><br>
+    <button id="copyOtpBtn" style="display:none;margin-bottom:8px;">Copy OTP</button>
+    <div id="detailMeta" class="muted"></div><br>
+    <div id="detailBody">-</div>
+  </div>
 
 </div>
 </div>
@@ -99,134 +122,373 @@ VANNSTORE TEMP MAIL
 
 <script>
 const API="https://api.mail.tm";
-let token=null,refreshTimer=null;
+let token=null;
+let refreshTimer=null;
 
 const $=id=>document.getElementById(id);
+
 const emailEl=$("email");
 const inboxBody=$("inboxBody");
 const detailMeta=$("detailMeta");
 const detailBody=$("detailBody");
 const statusEl=$("status");
+
+const btnGen=$("btnGen");
+const btnCopy=$("btnCopy");
+const btnRefresh=$("btnRefresh");
+const btnCustom=$("btnCustom");
+const btnClearAll=$("btnClearAll");
+
 const copyOtpBtn=$("copyOtpBtn");
+const customNameEl=$("customName");
+
+const pinsEl=$("pins");
+const historyEl=$("history");
+
+const LS_KEY="vannstore_temp_mail_history_v2"; // [{address,password,lastUsed,pinned}]
 
 function toast(msg){
-const t=$("toast");
-t.textContent=msg;
-t.style.display="block";
-setTimeout(()=>t.style.display="none",1600);
+  const t=$("toast");
+  t.textContent=msg;
+  t.style.display="block";
+  clearTimeout(t._h);
+  t._h=setTimeout(()=>t.style.display="none",1600);
+}
+
+function setReady(ready){
+  btnCopy.disabled=!ready;
+  btnRefresh.disabled=!ready;
+}
+
+function stopAutoRefresh(){
+  if(refreshTimer) clearInterval(refreshTimer);
+  refreshTimer=null;
 }
 
 async function api(path,opts={}){
-const headers=opts.headers||{};
-if(token)headers.Authorization="Bearer "+token;
-if(opts.body)headers["Content-Type"]="application/json";
-const r=await fetch(API+path,{...opts,headers});
-const txt=await r.text();
-const data=txt?JSON.parse(txt):null;
-if(!r.ok)throw new Error(data?.message||r.statusText);
-return data;
+  const headers=opts.headers||{};
+  if(token) headers.Authorization="Bearer "+token;
+  if(opts.body) headers["Content-Type"]="application/json";
+
+  const r=await fetch(API+path,{...opts,headers});
+  const txt=await r.text();
+  let data=null;
+  try{ data = txt ? JSON.parse(txt) : null; } catch { data = { message: txt }; }
+
+  if(!r.ok) throw new Error(data?.message || data?.detail || r.statusText);
+  return data;
 }
 
 function randomName(){
-return "vannnstore"+Math.random().toString(16).slice(2,8);
+  return "vannnstore"+Math.random().toString(16).slice(2,8);
 }
-
 function validName(v){
-return /^[a-z0-9._-]{3,30}$/.test(v);
-}
-
-async function create(name){
-token=null;
-emailEl.value="";
-statusEl.textContent="Menyiapkan domain...";
-
-const d=await api("/domains?page=1");
-const domain=d["hydra:member"][0].domain;
-
-const addr=`${name}@${domain}`;
-const pass=Math.random().toString(36);
-
-try{
-await api("/accounts",{method:"POST",body:JSON.stringify({address:addr,password:pass})});
-}catch(e){
-throw new Error("Nama sudah dipakai");
-}
-
-const t=await api("/token",{method:"POST",body:JSON.stringify({address:addr,password:pass})});
-token=t.token;
-emailEl.value=addr;
-statusEl.textContent="Siap menerima email";
-loadInbox();
-refreshTimer=setInterval(loadInbox,8000);
-}
-
-async function loadInbox(){
-if(!token)return;
-const list=await api("/messages?page=1");
-const msgs=list["hydra:member"];
-
-if(!msgs.length){
-inboxBody.innerHTML="<tr><td colspan=3>Belum ada email</td></tr>";
-return;
-}
-
-inboxBody.innerHTML=msgs.map(m=>`
-<tr data-id="${m.id}">
-<td>${new Date(m.createdAt).toLocaleTimeString()}</td>
-<td>${m.from?.address||"-"}</td>
-<td>${m.subject||"(no subject)"}</td>
-</tr>`).join("");
-
-document.querySelectorAll("[data-id]").forEach(tr=>{
-tr.onclick=()=>openMsg(tr.dataset.id);
-});
+  return /^[a-z0-9._-]{3,30}$/.test(v);
 }
 
 function escapeHtml(s){
-return s.replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+  return String(s).replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
 }
-
 function highlightOtp(text){
-return escapeHtml(text).replace(/\b(\d{4,8})\b/g,'<mark class="otp">$1</mark>');
+  return escapeHtml(text).replace(/\b(\d{4,8})\b/g,'<mark class="otp">$1</mark>');
+}
+function detectOTP(text){
+  const m=text.match(/\b\d{4,8}\b/);
+  return m?m[0]:null;
 }
 
-function detectOTP(text){
-const m=text.match(/\b\d{4,8}\b/);
-return m?m[0]:null;
+/* ===== Storage ===== */
+function loadHistory(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  }catch{ return []; }
+}
+function saveHistory(arr){
+  localStorage.setItem(LS_KEY, JSON.stringify(arr));
+}
+function upsertHistory(address,password){
+  const arr=loadHistory();
+  const idx=arr.findIndex(x=>x.address===address);
+  const prevPinned = idx>=0 ? !!arr[idx].pinned : false;
+
+  const item={address,password,lastUsed:Date.now(),pinned:prevPinned};
+  if(idx>=0) arr[idx]=item;
+  else arr.unshift(item);
+
+  const trimmed=arr.sort((a,b)=>b.lastUsed-a.lastUsed).slice(0,25);
+  saveHistory(trimmed);
+  renderChips();
+}
+function setPinned(address, pinned){
+  const arr=loadHistory();
+  const idx=arr.findIndex(x=>x.address===address);
+  if(idx<0) return;
+  arr[idx].pinned=!!pinned;
+  arr[idx].lastUsed=Date.now();
+  saveHistory(arr);
+  renderChips();
+}
+function removeOne(address){
+  const arr=loadHistory().filter(x=>x.address!==address);
+  saveHistory(arr);
+  renderChips();
+}
+function clearAll(){
+  localStorage.removeItem(LS_KEY);
+  renderChips();
+  toast("Riwayat dihapus semua");
+}
+
+/* ===== UI Chips ===== */
+function makeChip(item){
+  const wrap=document.createElement("div");
+  wrap.className="chip";
+
+  const addr=document.createElement("div");
+  addr.className="addr";
+  addr.title=item.address;
+  addr.textContent=item.address;
+
+  const btnUse=document.createElement("button");
+  btnUse.className="btnGhost";
+  btnUse.textContent="Pakai";
+  btnUse.onclick=()=>useHistory(item.address);
+
+  const btnPin=document.createElement("button");
+  btnPin.className="btnPin";
+  btnPin.textContent=item.pinned ? "📌" : "📍";
+  btnPin.title=item.pinned ? "Unpin" : "Pin";
+  btnPin.onclick=()=>setPinned(item.address, !item.pinned);
+
+  const btnDel=document.createElement("button");
+  btnDel.className="btnDanger";
+  btnDel.textContent="🗑";
+  btnDel.title="Hapus dari riwayat";
+  btnDel.onclick=()=>removeOne(item.address);
+
+  wrap.appendChild(addr);
+  wrap.appendChild(btnUse);
+  wrap.appendChild(btnPin);
+  wrap.appendChild(btnDel);
+  return wrap;
+}
+
+function renderChips(){
+  const arr=loadHistory().sort((a,b)=>b.lastUsed-a.lastUsed);
+  const pins=arr.filter(x=>x.pinned);
+  const hist=arr.filter(x=>!x.pinned);
+
+  pinsEl.innerHTML="";
+  historyEl.innerHTML="";
+
+  if(!pins.length){
+    pinsEl.textContent="Belum ada favorit.";
+    pinsEl.classList.add("muted");
+  }else{
+    pinsEl.classList.remove("muted");
+    pins.forEach(x=>pinsEl.appendChild(makeChip(x)));
+  }
+
+  if(!hist.length){
+    historyEl.textContent="Belum ada riwayat.";
+    historyEl.classList.add("muted");
+  }else{
+    historyEl.classList.remove("muted");
+    hist.forEach(x=>historyEl.appendChild(makeChip(x)));
+  }
+}
+
+/* ===== Core ===== */
+function resetUI(){
+  stopAutoRefresh();
+  token=null;
+  setReady(false);
+  emailEl.value="";
+  inboxBody.innerHTML=`<tr><td colspan="3">Memuat...</td></tr>`;
+  detailMeta.textContent="";
+  detailBody.textContent="-";
+  copyOtpBtn.style.display="none";
+}
+
+async function getDomain(){
+  const d=await api("/domains?page=1");
+  const domain=d["hydra:member"]?.[0]?.domain;
+  if(!domain) throw new Error("Domain tidak tersedia dari API.");
+  return domain;
+}
+
+async function createNew(localPart){
+  resetUI();
+  statusEl.textContent="Menyiapkan domain...";
+
+  const domain=await getDomain();
+  const addr=`${localPart}@${domain}`;
+  const pass="P@"+Math.random().toString(36).slice(2,12)+"9!";
+
+  statusEl.textContent=`Membuat akun (${localPart}@...)...`;
+  await api("/accounts",{method:"POST",body:JSON.stringify({address:addr,password:pass})});
+
+  statusEl.textContent="Login mailbox...";
+  const t=await api("/token",{method:"POST",body:JSON.stringify({address:addr,password:pass})});
+  token=t.token;
+
+  emailEl.value=addr;
+  setReady(true);
+  statusEl.textContent="Siap menerima email. Auto refresh tiap 8 detik.";
+  toast("Email dibuat!");
+
+  upsertHistory(addr,pass);
+
+  await loadInbox();
+  refreshTimer=setInterval(loadInbox,8000);
+}
+
+async function loginExisting(address,password){
+  resetUI();
+  statusEl.textContent="Login ulang ke email lama...";
+
+  const t=await api("/token",{method:"POST",body:JSON.stringify({address,password})});
+  token=t.token;
+
+  emailEl.value=address;
+  setReady(true);
+  statusEl.textContent="Email lama aktif. Auto refresh tiap 8 detik.";
+  toast("Email lama aktif!");
+
+  upsertHistory(address,password);
+
+  await loadInbox();
+  refreshTimer=setInterval(loadInbox,8000);
+}
+
+async function useHistory(address){
+  const arr=loadHistory();
+  const item=arr.find(x=>x.address===address);
+  if(!item) return toast("Data riwayat tidak ditemukan");
+
+  btnGen.disabled=true; btnCustom.disabled=true;
+  try{
+    await loginExisting(item.address,item.password);
+  }catch(e){
+    statusEl.textContent="Gagal pakai email lama — " + e.message;
+    toast("Login gagal (mungkin email sudah dihapus layanan).");
+    setReady(false);
+  }finally{
+    btnGen.disabled=false; btnCustom.disabled=false;
+  }
+}
+
+async function loadInbox(){
+  if(!token) return;
+
+  try{
+    const list=await api("/messages?page=1");
+    const msgs=list["hydra:member"] || [];
+
+    if(!msgs.length){
+      inboxBody.innerHTML="<tr><td colspan=3>Belum ada email</td></tr>";
+      return;
+    }
+
+    inboxBody.innerHTML=msgs.map(m=>`
+      <tr data-id="${m.id}">
+        <td>${m.createdAt ? new Date(m.createdAt).toLocaleTimeString() : "-"}</td>
+        <td>${escapeHtml(m.from?.address||"-")}</td>
+        <td>${escapeHtml(m.subject||"(no subject)")}</td>
+      </tr>
+    `).join("");
+
+    document.querySelectorAll("[data-id]").forEach(tr=>{
+      tr.onclick=()=>openMsg(tr.dataset.id);
+    });
+  }catch(e){
+    statusEl.textContent="Gagal refresh inbox — " + e.message;
+  }
 }
 
 async function openMsg(id){
-const m=await api("/messages/"+id);
+  const m=await api("/messages/"+id);
 
-const txt=m.text||m.html?.[0]||"(kosong)";
-const clean=txt.replace(/<[^>]+>/g,"");
+  const raw = m.text || (m.html?.[0] || "");
+  const clean = raw ? raw.replace(/<[^>]+>/g,"") : "(kosong)";
 
-detailMeta.innerHTML=`Subjek: ${m.subject||"-"}`;
-detailBody.innerHTML=highlightOtp(clean);
+  detailMeta.innerHTML=`Subjek: <b>${escapeHtml(m.subject||"-")}</b>`;
+  detailBody.innerHTML=highlightOtp(clean);
 
-const otp=detectOTP(clean);
-
-if(otp){
-copyOtpBtn.style.display="inline-block";
-copyOtpBtn.onclick=async()=>{
-await navigator.clipboard.writeText(otp);
-toast("OTP disalin "+otp);
-};
-}else{
-copyOtpBtn.style.display="none";
+  const otp=detectOTP(clean);
+  if(otp){
+    copyOtpBtn.style.display="inline-block";
+    copyOtpBtn.onclick=async()=>{
+      try{
+        await navigator.clipboard.writeText(otp);
+        toast("OTP disalin: " + otp);
+      }catch{
+        toast("Gagal copy OTP (butuh HTTPS/localhost).");
+      }
+    };
+  }else{
+    copyOtpBtn.style.display="none";
+  }
 }
-}
 
-$("btnGen").onclick=()=>create(randomName());
-
-$("btnCustom").onclick=()=>{
-const v=$("customName").value.toLowerCase().trim();
-if(!validName(v)) return create(randomName());
-create(v).catch(()=>create(randomName()));
+/* ===== Actions ===== */
+btnGen.onclick = async () => {
+  btnGen.disabled=true; btnCustom.disabled=true;
+  try{ await createNew(randomName()); }
+  catch(e){
+    statusEl.textContent="Error — " + e.message;
+    inboxBody.innerHTML="<tr><td colspan=3>Gagal memuat</td></tr>";
+    setReady(false);
+  }finally{
+    btnGen.disabled=false; btnCustom.disabled=false;
+  }
 };
 
-$("btnCopy").onclick=()=>navigator.clipboard.writeText(emailEl.value);
-$("btnRefresh").onclick=loadInbox;
+btnCustom.onclick = async () => {
+  btnGen.disabled=true; btnCustom.disabled=true;
+  const v=(customNameEl.value||"").toLowerCase().trim();
+
+  try{
+    if(!validName(v)){
+      toast("Custom name tidak valid. Pakai random.");
+      await createNew(randomName());
+    }else{
+      try{
+        await createNew(v);
+        toast("Custom dipakai!");
+      }catch{
+        toast("Custom gagal/terpakai. Pakai random.");
+        await createNew(randomName());
+      }
+    }
+  }catch(e){
+    statusEl.textContent="Error — " + e.message;
+    inboxBody.innerHTML="<tr><td colspan=3>Gagal memuat</td></tr>";
+    setReady(false);
+  }finally{
+    btnGen.disabled=false; btnCustom.disabled=false;
+  }
+};
+
+btnCopy.onclick = async () => {
+  try{
+    await navigator.clipboard.writeText(emailEl.value);
+    toast("Email disalin!");
+  }catch{
+    toast("Gagal copy (butuh HTTPS/localhost).");
+  }
+};
+
+btnRefresh.onclick = loadInbox;
+
+btnClearAll.onclick = clearAll;
+
+customNameEl.addEventListener("keydown", (e)=>{ if(e.key==="Enter") btnCustom.click(); });
+
+/* init */
+renderChips();
 </script>
 </body>
 </html>
