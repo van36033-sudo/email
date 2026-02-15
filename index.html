@@ -100,6 +100,23 @@ background:#0f1a33;border:1px solid #2a3a66;padding:10px 12px;border-radius:999p
 }
 .ctaLink a:hover{text-decoration:underline;}
 .smallCopy{background:#1f2a4a;padding:8px 10px;border-radius:10px;font-weight:800;}
+
+/* ✅ Preview HTML (gambar tampil) */
+.viewTabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
+.tabBtn{
+  background:#1f2a4a;
+  padding:8px 10px;
+  border-radius:10px;
+  font-weight:900;
+}
+.tabBtn.active{background:#2b6cff;}
+#htmlFrame{
+  width:100%;
+  height:360px;
+  border:1px solid #24335f;
+  border-radius:12px;
+  background:#0c152a;
+}
 </style>
 </head>
 
@@ -165,8 +182,16 @@ VANNSTORE TEMP MAIL
     </div>
 
     <button id="copyOtpBtn" style="display:none;margin-bottom:8px;">Copy OTP</button>
-    <div id="detailMeta" class="muted"></div><br>
-    <div id="detailBody">-</div>
+    <div id="detailMeta" class="muted"></div>
+
+    <!-- ✅ Tabs: Preview / Teks -->
+    <div class="viewTabs">
+      <button id="tabPreview" class="tabBtn active" type="button">Preview (gambar)</button>
+      <button id="tabText" class="tabBtn" type="button">Teks</button>
+    </div>
+
+    <iframe id="htmlFrame" sandbox=""></iframe>
+    <div id="detailBody" style="display:none;">-</div>
   </div>
 
 </div>
@@ -211,6 +236,11 @@ const ctaLinks=$("ctaLinks");
 let mainLink=null;
 let extraLinks=[];
 
+/* Preview elements */
+const tabPreview=$("tabPreview");
+const tabText=$("tabText");
+const htmlFrame=$("htmlFrame");
+
 const LS_KEY="vannstore_temp_mail_history_v2"; // [{address,password,lastUsed,pinned}]
 
 function toast(msg){
@@ -240,7 +270,6 @@ async function api(path,opts={}){
   const txt=await r.text();
   let data=null;
   try{ data = txt ? JSON.parse(txt) : null; } catch { data = { message: txt }; }
-
   if(!r.ok) throw new Error(data?.message || data?.detail || r.statusText);
   return data;
 }
@@ -263,6 +292,65 @@ function detectOTP(text){
   return m?m[0]:null;
 }
 
+/* ===== HTML sanitize + preview =====
+   Tujuan: tampilkan HTML email + gambar, tapi blok script/iframe/form dan event handler.
+*/
+function sanitizeEmailHtml(html){
+  try{
+    const doc = new DOMParser().parseFromString(html || "", "text/html");
+
+    // hapus elemen berbahaya
+    doc.querySelectorAll("script, iframe, frame, object, embed, form, input, button, textarea, select, meta, base").forEach(el=>el.remove());
+
+    // bersihkan atribut event handler + javascript: link
+    doc.querySelectorAll("*").forEach(el=>{
+      [...el.attributes].forEach(attr=>{
+        const n = attr.name.toLowerCase();
+        const v = (attr.value || "").trim();
+        if(n.startsWith("on")) el.removeAttribute(attr.name);
+        if((n === "href" || n === "src") && /^javascript:/i.test(v)) el.removeAttribute(attr.name);
+      });
+    });
+
+    // pastikan link aman: buka tab baru
+    doc.querySelectorAll("a[href]").forEach(a=>{
+      a.setAttribute("target","_blank");
+      a.setAttribute("rel","noopener noreferrer");
+    });
+
+    // styling default biar rapi
+    const style = doc.createElement("style");
+    style.textContent = `
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:14px; color:#0b1220;}
+      img{max-width:100%; height:auto; border-radius:10px;}
+      a{color:#2b6cff; word-break:break-word;}
+      table{max-width:100%;}
+      *{box-sizing:border-box;}
+    `;
+    doc.head.appendChild(style);
+
+    return "<!doctype html>" + doc.documentElement.outerHTML;
+  }catch{
+    return "<!doctype html><html><body>Preview tidak tersedia.</body></html>";
+  }
+}
+
+function showPreview(){
+  tabPreview.classList.add("active");
+  tabText.classList.remove("active");
+  htmlFrame.style.display="block";
+  detailBody.style.display="none";
+}
+function showText(){
+  tabText.classList.add("active");
+  tabPreview.classList.remove("active");
+  htmlFrame.style.display="none";
+  detailBody.style.display="block";
+}
+
+tabPreview.onclick = showPreview;
+tabText.onclick = showText;
+
 /* ===== CTA helpers ===== */
 function normalizeUrl(u){
   try{
@@ -275,7 +363,7 @@ function extractLinksFromText(text){
   const urls=[];
   const re=/(https?:\/\/[^\s<>"')\]]+)/g;
   let m;
-  while((m=re.exec(text))!==null){
+  while((m=re.exec(text||""))!==null){
     const clean=m[1].replace(/[.,;!?)\]]+$/g,"");
     const n=normalizeUrl(clean);
     if(n) urls.push(n);
@@ -285,7 +373,7 @@ function extractLinksFromText(text){
 function extractLinksFromHtmlWithText(html){
   const out=[]; // {url,text}
   try{
-    const doc=new DOMParser().parseFromString(html,"text/html");
+    const doc=new DOMParser().parseFromString(html||"","text/html");
     doc.querySelectorAll("a[href]").forEach(a=>{
       const href=normalizeUrl(a.getAttribute("href")||"");
       if(!href) return;
@@ -307,7 +395,7 @@ function uniq(arr){
   return out;
 }
 function scoreLink(url){
-  const u=url.toLowerCase();
+  const u=(url||"").toLowerCase();
   const keywords=["verify","verification","confirm","activate","reset","password","login","signin","otp","code","payment","billing","update","subscribe"];
   let s=0;
   for(const k of keywords) if(u.includes(k)) s+=3;
@@ -316,16 +404,13 @@ function scoreLink(url){
   return s;
 }
 function pickBest(urls){
-  return [...urls].sort((a,b)=>scoreLink(b)-scoreLink(a))[0] || null;
+  return [...(urls||[])].sort((a,b)=>scoreLink(b)-scoreLink(a))[0] || null;
 }
 function labelForLink(url, anchorText){
   const u=(url||"").toLowerCase();
   const t=(anchorText||"").toLowerCase();
-
-  // kalau email punya tombol dengan teks bagus, pakai itu
-  const nice = (anchorText||"").trim();
+  const nice=(anchorText||"").trim();
   if(nice && nice.length<=28 && /verify|confirm|activate|reset|update|continue|login|sign/i.test(nice)) return nice;
-
   if(/verify|confirm|activate/.test(u) || /verify|confirm|activate/.test(t)) return "Verifikasi Email";
   if(/reset/.test(u) || /reset/.test(t)) return "Reset Password";
   if(/login|signin/.test(u) || /login|signin/.test(t)) return "Login";
@@ -353,10 +438,8 @@ function setCta(main, label, extras){
   ctaTitle.textContent = "Aksi Cepat";
   ctaBtn.textContent = label || "Buka Link Utama";
   ctaDesc.textContent = descForLabel(ctaBtn.textContent);
-
   ctaBtn.onclick = () => window.open(mainLink, "_blank", "noopener,noreferrer");
 
-  // render extra links (hidden by default)
   ctaLinks.innerHTML="";
   const list = extraLinks.slice(0,6);
   list.forEach(url=>{
@@ -384,6 +467,22 @@ function setCta(main, label, extras){
   btnToggleLinks.textContent = extraLinks.length ? "Lihat link lain" : "Tidak ada link lain";
   btnToggleLinks.disabled = extraLinks.length === 0;
 }
+
+/* CTA buttons events */
+btnToggleLinks.onclick = () => {
+  if(ctaLinks.style.display === "none"){
+    ctaLinks.style.display = "flex";
+    btnToggleLinks.textContent = "Sembunyikan link lain";
+  }else{
+    ctaLinks.style.display = "none";
+    btnToggleLinks.textContent = extraLinks.length ? "Lihat link lain" : "Tidak ada link lain";
+  }
+};
+btnCopyMainLink.onclick = async () => {
+  if(!mainLink) return;
+  try{ await navigator.clipboard.writeText(mainLink); toast("Link utama disalin!"); }
+  catch{ toast("Gagal copy link (butuh HTTPS/localhost)."); }
+};
 
 /* ===== Storage (chips/pin) ===== */
 function loadHistory(){
@@ -480,6 +579,8 @@ function resetUI(){
   detailBody.textContent="-";
   copyOtpBtn.style.display="none";
   setCta(null, null, []);
+  htmlFrame.srcdoc = "<!doctype html><html><body style='font-family:system-ui;margin:14px;color:#a9b7de;'>Preview belum ada.</body></html>";
+  showPreview();
 }
 
 async function getDomain(){
@@ -552,16 +653,13 @@ async function useHistory(address){
 
 async function loadInbox(){
   if(!token) return;
-
   try{
     const list=await api("/messages?page=1");
     const msgs=list["hydra:member"] || [];
-
     if(!msgs.length){
       inboxBody.innerHTML="<tr><td colspan=3>Belum ada email</td></tr>";
       return;
     }
-
     inboxBody.innerHTML=msgs.map(m=>`
       <tr data-id="${m.id}">
         <td>${m.createdAt ? new Date(m.createdAt).toLocaleTimeString() : "-"}</td>
@@ -569,7 +667,6 @@ async function loadInbox(){
         <td>${escapeHtml(m.subject||"(no subject)")}</td>
       </tr>
     `).join("");
-
     document.querySelectorAll("[data-id]").forEach(tr=>{
       tr.onclick=()=>openMsg(tr.dataset.id);
     });
@@ -584,24 +681,33 @@ async function openMsg(id){
   const html = (m.html && m.html[0]) ? m.html[0] : "";
   const text = m.text || "";
 
-  // ambil link dari text + html (dan teks tombol)
+  // ✅ Preview HTML (gambar tampil)
+  if(html){
+    htmlFrame.srcdoc = sanitizeEmailHtml(html);
+  }else{
+    // fallback kalau hanya text
+    const fallback = "<!doctype html><html><body style='font-family:system-ui;margin:14px;'>" +
+      "<pre style='white-space:pre-wrap;word-break:break-word;'>" + escapeHtml(text || "(kosong)") + "</pre>" +
+      "</body></html>";
+    htmlFrame.srcdoc = fallback;
+  }
+
+  // CTA links
   const aLinks = extractLinksFromHtmlWithText(html); // {url,text}
   const urls = uniq([
     ...aLinks.map(x=>x.url),
     ...extractLinksFromText(text),
     ...extractLinksFromText(html.replace(/<[^>]+>/g," "))
   ]);
-
   const best = pickBest(urls);
   const bestAnchor = aLinks.find(x=>x.url===best)?.text || "";
   const label = labelForLink(best, bestAnchor);
-
   const extras = urls.filter(u=>u!==best);
   setCta(best, label, extras);
 
+  // Text view + OTP highlight
   const raw = text || html || "";
   const clean = raw ? raw.replace(/<[^>]+>/g,"") : "(kosong)";
-
   detailMeta.innerHTML=`Subjek: <b>${escapeHtml(m.subject||"-")}</b>`;
   detailBody.innerHTML=highlightOtp(clean);
 
@@ -615,23 +721,10 @@ async function openMsg(id){
   }else{
     copyOtpBtn.style.display="none";
   }
-}
 
-/* ===== CTA buttons events ===== */
-btnToggleLinks.onclick = () => {
-  if(ctaLinks.style.display === "none"){
-    ctaLinks.style.display = "flex";
-    btnToggleLinks.textContent = "Sembunyikan link lain";
-  }else{
-    ctaLinks.style.display = "none";
-    btnToggleLinks.textContent = extraLinks.length ? "Lihat link lain" : "Tidak ada link lain";
-  }
-};
-btnCopyMainLink.onclick = async () => {
-  if(!mainLink) return;
-  try{ await navigator.clipboard.writeText(mainLink); toast("Link utama disalin!"); }
-  catch{ toast("Gagal copy link (butuh HTTPS/localhost)."); }
-};
+  // default: preview
+  showPreview();
+}
 
 /* ===== Actions ===== */
 btnGen.onclick = async () => {
@@ -649,7 +742,6 @@ btnGen.onclick = async () => {
 btnCustom.onclick = async () => {
   btnGen.disabled=true; btnCustom.disabled=true;
   const v=(customNameEl.value||"").toLowerCase().trim();
-
   try{
     if(!validName(v)){
       toast("Custom name tidak valid. Pakai random.");
@@ -671,14 +763,13 @@ btnCopy.onclick = async () => {
   try{ await navigator.clipboard.writeText(emailEl.value); toast("Email disalin!"); }
   catch{ toast("Gagal copy (butuh HTTPS/localhost)."); }
 };
-
 btnRefresh.onclick = loadInbox;
 btnClearAll.onclick = clearAll;
-
 customNameEl.addEventListener("keydown", (e)=>{ if(e.key==="Enter") btnCustom.click(); });
 
 /* init */
 renderChips();
+resetUI();
 </script>
 </body>
 </html>
